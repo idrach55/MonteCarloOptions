@@ -3,4 +3,4 @@
 - Pricing implemented in C:
   - Vanilla European Call
 - Pricing implemented in CUDA:
-  - To come soon   
+  - Vanilla European Call  

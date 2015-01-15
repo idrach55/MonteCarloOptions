@@ -71,10 +71,16 @@ __global__ void single_trajectory(curandState *state, params *p, double *payoffs
 int main(int argc, char **argv) 
 {
     // default trajectories is 100k
+    // trajectories must be multiple of 1000 for an integer number of blocks
     int trajectories = 100000;
 
     // check for command line arguments
     if (argc == 3 && strcmp(argv[1],"-T") == 0) {
+        // error check for invalid trajectory number
+        if (atoi(argv[2]) % 1000 != 0) {
+            std::cout << "error: number of trajectories must be multiple of 1000" << std::endl;
+            return 0;
+        }
         // set custom trajectories
         trajectories = atoi(argv[2]);
     } else if (argc > 1) {

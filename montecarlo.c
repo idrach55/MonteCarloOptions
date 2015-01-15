@@ -6,7 +6,7 @@
 //  Copyright (c) 2015 Isaac Drachman. All rights reserved.
 //
 
-#include "montecarlo.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
@@ -33,7 +33,7 @@ double BoxMuller()
 }
 
 /*
- description:	monte carlo simulation for pricing vanilla a European Call
+ description:	monte carlo simulation for pricing a vanilla European Call
  parameters:
 				int M:			number of trajectories to simulate stock price
 				int N:			number of timesteps in discretization
@@ -45,10 +45,7 @@ double BoxMuller()
  output:		option premium, approximated by simulation's discounted average payoff
 */
 double EuropeanCall(int M, int N, double S0, double sigma, double r, double T, double K)
-{
-	// seed the random number generator
-	srand((unsigned int)time(NULL));
-	
+{	
 	double dt = T / N;
 	double sum = 0.0;
 	double S;
@@ -68,4 +65,24 @@ double EuropeanCall(int M, int N, double S0, double sigma, double r, double T, d
 	}
 	// discount the average payoff and return
 	return exp(-r*T)*(sum/M);
+}
+
+int main(int argc, const char * argv[]) {
+	// seed the random number generator
+	srand((unsigned int)time(NULL));
+	
+	int M = 80000;				// trajectories
+	int N = 500;				// timesteps
+	double S0 = 109.33;			// spot price
+	double sigma = 0.2519;		// volatility (annualized)
+	double r = 0.0025;			// risk-free interest rate (annualized)
+	double T = 48.0/365.0;		// time to maturity in years
+	double K = 120.00;			// strike price
+	
+	// calculate premium for a European Call with above parameters
+	double premium = EuropeanCall(M, N, S0, sigma, r, T, K);
+	
+	// print values and quit
+	printf("european call premium = %0.6f\n",premium);
+	return 0;
 }

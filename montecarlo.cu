@@ -61,17 +61,27 @@ __global__ void single_trajectory(curandState *state, params *p, double *payoffs
         // using Euler-Murayama discretization for the geometric Bronwian model of stock dynamics
         // drift and diffuse the stock price over one timestep
         // taking advantage of curand's standard normal distribution draw function
-        S = S *(1 + p->r*dt + p->sigma*curand_normal(&state[idx])*sqrt(dt));
+        S *= (1 + p->r*dt + p->sigma*curand_normal(&state[idx])*sqrt(dt));
     }
     // if this option makes money, we have a payoff, otherwise 0
     if (S - p->K > 0.0) payoffs[idx] = S - p->K;
     else payoffs[idx] = 0.0;
 }
 
-int main(void) 
+int main(int argc, char **argv) 
 {
-    // number of trajectories
-    int trajectories = 80000;
+    // default trajectories is 100k
+    int trajectories = 100000;
+
+    // check for command line arguments
+    if (argc == 3 && strcmp(argv[1],"-T") == 0) {
+        // set custom trajectories
+        trajectories = atoi(argv[2]);
+    } else if (argc > 1) {
+        // usage error
+        std::cout << "usage: " << argv[0] << " [-T trajectories]" << std::endl;
+        return -1;
+    }
 
     // fill out simulation parameters to pass to GPU
     params h_params;

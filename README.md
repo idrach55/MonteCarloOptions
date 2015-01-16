@@ -2,6 +2,7 @@
 Monte Carlo simulation for options pricing in C and CUDA C++.
 Both C and CUDA C++ programs can price vanilla european calls.
 
+# Usage Instructions
 Usage for CUDA C++:<br>
 Edit source code to set contract parameters. Assuming the CUDA toolkit is installed from NVIDIA
 (https://developer.nvidia.com/cuda-downloads), compile with<br>

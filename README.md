@@ -11,7 +11,8 @@ Edit the source code to set contract parameters. Assuming the CUDA toolkit is in
 Command line arguments:<br>
 <code>-b blocks</code> set total number of blocks (each runs 1024 trajectories), default is 200<br>
 <code>-m max per partition</code> set maximum number of blocks per kernel call, default is 500<br>
-<code>-N time steps</code> set number of time steps for each trajectory, default is 500
+<code>-N time steps</code> set number of time steps for each trajectory, default is 500<br>
+<code>--help</code> prints listing of valid arguments
 
 # Kernel Timeouts
 There has been an issue with kernel timeouts. If the card running this program is also driving a display, kernels running for more than an OS specified amount of time will be killed. To counter this, I have written a block paritioning system to split

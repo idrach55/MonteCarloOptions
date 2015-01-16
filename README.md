@@ -9,8 +9,8 @@ Edit the source code to set contract parameters. Assuming the CUDA toolkit is in
     nvcc -o mc.o montecarlo.cu
     
 Command line arguments:<br>
-<code>-b blocks</code> set total number of blocks (each runs 1024 trajectories), default is 200
-<code>-m max per partition</code> set maximum number of blocks per partition of work, default is 500
+<code>-b blocks</code> set total number of blocks (each runs 1024 trajectories), default is 200<br>
+<code>-m max per partition</code> set maximum number of blocks per partition of work, default is 500<br>
 <code>-N time steps</code> set number of time steps for each trajectory, default is 500
 
 # Kernel Timeouts

@@ -90,16 +90,15 @@ int main(int argc, char **argv)
     int nThreads = 1024;
 
     // check for command line arguments
-    if (argc > 1) {
+    if (argc > 2) {
         for (int i = 1; i < argc; i++) 
         {
             if (strcmp(argv[i],"-b") == 0) nBlocks = atoi(argv[i+1]);
             if (strcmp(argv[i],"-m") == 0) maxBlocks = atoi(argv[i+1]);
             if (strcmp(argv[i],"-N") == 0) h_params.N = atoi(argv[i+1]);
         }
-    } else if (argc > 1) {
-        // usage error
-        std::cout << "usage: " << argv[0] << " [-b blocks] [-m max per partition] [-N time steps]" << std::endl;
+    } else if (argc == 2 && strcmp(argv[1],"--help") == 0) {
+        std::cout << "usage: " << argv[0] << " [-b blocks] [-m max per partition] [-N time steps] [--help]" << std::endl;
         return -1;
     }
 

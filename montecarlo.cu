@@ -76,11 +76,11 @@ int main(int argc, char **argv)
     // fill out simulation parameters to pass to GPU
     params h_params;
     h_params.N = 500;            // time steps
-    h_params.S0 = 1992.67;       // spot price
-    h_params.sigma = 0.17056;    // volatility (annualized)
-    h_params.r = 0.00023;        // risk-free interest rate (annualized)
-    h_params.T = 9.0/365.0;      // time to maturity in years
-    h_params.K = 1990.00;        // strike price
+    h_params.S0 = 2008.24;       // spot price
+    h_params.sigma = 0.172275;   // volatility (annualized)
+    h_params.r = 0.00018;        // risk-free interest rate (annualized)
+    h_params.T = 15.0/365.0;     // time to maturity in years
+    h_params.K = 2025.00;        // strike price
 
 
     // default number of blocks is 200
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
     // for each group of blocks
     for (int p = 0; p < nPartitions; p++) 
     {
-        nBlocks = partition[p];
+        int pBlocks = partition[p];
 
         // seed the random number generator
         // using time on the host system and passing it to the GPU
@@ -135,9 +135,9 @@ int main(int argc, char **argv)
         // setup rng
         curandState *d_state;
         // we'll have a seperate generator for each trajectory
-        cudaMalloc(&d_state, nBlocks * nThreads);
+        cudaMalloc(&d_state, pBlocks * nThreads);
         // initialize this generator with seed
-        init_curand<<< nBlocks, nThreads >>>(d_state, d_seed);
+        init_curand<<< pBlocks, nThreads >>>(d_state, d_seed);
 
         // make space in VRAM and copy over parameters
         params *d_params;
@@ -146,22 +146,18 @@ int main(int argc, char **argv)
 
         // make space on device for payoff array
         double *d_payoffs;
-        cudaMalloc(&d_payoffs, sizeof(double)*nBlocks*nThreads);
+        cudaMalloc(&d_payoffs, sizeof(double)*pBlocks*nThreads);
 
         // run our trajectories
-        single_trajectory<<< nBlocks, nThreads >>>(d_state, d_params, d_payoffs);
+        single_trajectory<<< pBlocks, nThreads >>>(d_state, d_params, d_payoffs);
 
         // dynamically allocate payoff array on host
-        double *h_payoffs = new double[nBlocks*nThreads];
+        double *h_payoffs = new double[pBlocks*nThreads];
         // copy payoffs from device to host
-        cudaMemcpy(h_payoffs, d_payoffs, sizeof(double)*nBlocks*nThreads, cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_payoffs, d_payoffs, sizeof(double)*pBlocks*nThreads, cudaMemcpyDeviceToHost);
 
         // sum each payoff
-        double sum = 0.0;
-        for (int m = 0; m < nBlocks*nThreads; m++) sum += h_payoffs[m];    
-
-        // calculate average for this partition
-        total_sum += sum / (nBlocks*nThreads);
+        for (int m = 0; m < pBlocks*nThreads; m++) total_sum += h_payoffs[m];
 
         // free memory on host and device for this partition
         delete[] h_payoffs;
@@ -178,7 +174,7 @@ int main(int argc, char **argv)
     }
 
     // calculate discounted average payoff and print
-    double premium = exp(-h_params.r * h_params.T)*(total_sum/nPartitions);
+    double premium = exp(-h_params.r * h_params.T)*(total_sum/(nBlocks*nThreads));
     std::cout << "european call premium = " << premium << std::endl;
 
     // exit

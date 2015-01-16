@@ -23,4 +23,4 @@ You may use the command line argument to set the number of trajectories.
 
     ./mc.o -T 30000
     
-Or do not include any arguments to use the default (30k).
+Or do not include any arguments to use the default (30,000 trajectories).

@@ -52,16 +52,19 @@ __global__ void single_trajectory(curandState *state, params *p, double *payoffs
     // calculate our index (which trajectory is this)
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
+    // copy this thread's rng to local memory
+    curandState lcl_state = state[idx];
+
     // set stepsize and initial price
     double dt = p->T / p->N;
     double S = p->S0;
     // for each time step 1 through N
-    for (int n = 1; n <= p->N; n++)
+    for (int n = 1; n <= p->N; n++) 
     {
         // using Euler-Murayama discretization for the geometric Bronwian model of stock dynamics
         // drift and diffuse the stock price over one timestep
         // taking advantage of curand's standard normal distribution draw function
-        S *= (1 + p->r*dt + p->sigma*curand_normal(&state[idx])*sqrt(dt));
+        S *= (1 + p->r*dt + p->sigma*curand_normal(&lcl_state)*sqrt(dt));
     }
     // if this option makes money, we have a payoff, otherwise 0
     if (S - p->K > 0.0) payoffs[idx] = S - p->K;
@@ -70,6 +73,16 @@ __global__ void single_trajectory(curandState *state, params *p, double *payoffs
 
 int main(int argc, char **argv) 
 {
+    // fill out simulation parameters to pass to GPU
+    params h_params;
+    h_params.N = 500;            // timesteps
+    h_params.S0 = 1992.67;       // spot price
+    h_params.sigma = 0.17056;    // volatility (annualized)
+    h_params.r = 0.00023;        // risk-free interest rate (annualized)
+    h_params.T = 9.0/365.0;      // time to maturity in years
+    h_params.K = 1990.00;        // strike price
+
+
     // default number of blocks is 200
     // each block runs 1024 threads (trajectories)
     int nBlocks = 200;
@@ -85,61 +98,84 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    // fill out simulation parameters to pass to GPU
-    params h_params;
-    h_params.N = 500;            // timesteps
-    h_params.S0 = 1992.67;       // spot price
-    h_params.sigma = 0.17056;    // volatility (annualized)
-    h_params.r = 0.00023;        // risk-free interest rate (annualized)
-    h_params.T = 9.0/365.0;      // time to maturity in years
-    h_params.K = 1990.00;        // strike price
+    // we will partition the blocks over several kernels to avoid timeout errors
+    // each kernel will execute at most 500 blocks   
+    int nPartitions = 1;
+    if (nBlocks > 500 && nBlocks % 500 == 0) nPartitions = nBlocks / 500;
+    else if (nBlocks > 500) nPartitions = nBlocks / 500 + 1; 
 
-    // seed the random number generator
-    // I'm using time on the host system and passing it to the GPU
-    unsigned int h_seed = (unsigned int)time(NULL);
-    // make space in VRAM and copy over seed
-    unsigned int *d_seed;
-    cudaMalloc(&d_seed, sizeof(unsigned int));
-    cudaMemcpy(&d_seed, &h_seed, sizeof(unsigned int), cudaMemcpyHostToDevice);
+    int partition[nPartitions];
 
-    // setup rng
-    curandState *d_state;
-    // we'll have a seperate generator for each trajectory
-    cudaMalloc(&d_state, nBlocks * nThreads);
-    // initialize this generator with seed
-    init_curand<<< nBlocks, nThreads >>>(d_state, d_seed);
+    int tmp_nBlocks = nBlocks;
+    for (int p = 0; tmp_nBlocks > 0; p++) {
+        int amt = min(tmp_nBlocks,500);
+        partition[p] = amt; 
 
-    // make space in VRAM and copy over parameters
-    params *d_params;
-    cudaMalloc(&d_params, sizeof(params));
-    cudaMemcpy(d_params, &h_params, sizeof(params), cudaMemcpyHostToDevice);
+        tmp_nBlocks -= amt;
+    }
 
-    // make space on device for payoff array
-    double *d_payoffs;
-    cudaMalloc(&d_payoffs, sizeof(double) * nBlocks * nThreads);
+    double total_sum = 0.0;
+    // for each group of blocks
+    for (int p = 0; p < nPartitions; p++) 
+    {
+        nBlocks = partition[p];
 
-    // run our trajectories
-    single_trajectory<<< nBlocks, nThreads >>>(d_state, d_params, d_payoffs);
+        // seed the random number generator
+        // using time on the host system and passing it to the GPU
+        unsigned int h_seed = (unsigned int)time(NULL);
+        // make space in VRAM and copy over seed
+        unsigned int *d_seed;
+        cudaMalloc(&d_seed, sizeof(unsigned int));
+        cudaMemcpy(&d_seed, &h_seed, sizeof(unsigned int), cudaMemcpyHostToDevice);
 
-    // dynamically allocate payoff array on host
-    double *h_payoffs = new double[nBlocks*nThreads];
-    // copy payoffs from device to host
-    cudaMemcpy(h_payoffs, d_payoffs, sizeof(double) * nBlocks * nThreads, cudaMemcpyDeviceToHost);
+        // setup rng
+        curandState *d_state;
+        // we'll have a seperate generator for each trajectory
+        cudaMalloc(&d_state, nBlocks * nThreads);
+        // initialize this generator with seed
+        init_curand<<< nBlocks, nThreads >>>(d_state, d_seed);
 
-    // sum each payoff
-    double sum = 0.0;
-    for (int m = 0; m < nBlocks*nThreads; m++) sum += h_payoffs[m];    
+        // make space in VRAM and copy over parameters
+        params *d_params;
+        cudaMalloc(&d_params, sizeof(params));
+        cudaMemcpy(d_params, &h_params, sizeof(params), cudaMemcpyHostToDevice);
 
-    // calculate discounted average payoff
-    double premium = exp(-h_params.r * h_params.T)*(sum/(nBlocks*nThreads));
-    // print result
+        // make space on device for payoff array
+        double *d_payoffs;
+        cudaMalloc(&d_payoffs, sizeof(double)*nBlocks*nThreads);
+
+        // run our trajectories
+        single_trajectory<<< nBlocks, nThreads >>>(d_state, d_params, d_payoffs);
+
+        // dynamically allocate payoff array on host
+        double *h_payoffs = new double[nBlocks*nThreads];
+        // copy payoffs from device to host
+        cudaMemcpy(h_payoffs, d_payoffs, sizeof(double)*nBlocks*nThreads, cudaMemcpyDeviceToHost);
+
+        // sum each payoff
+        double sum = 0.0;
+        for (int m = 0; m < nBlocks*nThreads; m++) sum += h_payoffs[m];    
+
+        // calculate average for this partition
+        total_sum += sum / (nBlocks*nThreads);
+
+        // free memory on host and device for this partition
+        delete[] h_payoffs;
+        cudaFree(d_state);
+        cudaFree(d_params);
+        cudaFree(d_payoffs);
+
+        std::string error = cudaGetErrorString(cudaGetLastError());
+        if (error.compare("the launch timed out and was terminated") == 0) 
+        {
+            std::cout << "error: kernel timeout" << std::endl;
+            return 0;
+        }
+    }
+
+    // calculate discounted average payoff and print
+    double premium = exp(-h_params.r * h_params.T)*(total_sum/nPartitions);
     std::cout << "european call premium = " << premium << std::endl;
-
-    // free memory on host and device
-    delete[] h_payoffs;
-    cudaFree(d_state);
-    cudaFree(d_params);
-    cudaFree(d_payoffs);
 
     // exit
     return 0;

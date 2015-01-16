@@ -1,6 +1,17 @@
 # MonteCarloOptions
-- Monte Carlo simulation for options pricing in C and CUDA C++.
-- Pricing implemented in C:
-  - Vanilla European Call
-- Pricing implemented in CUDA:
-  - Vanilla European Call  
+Monte Carlo simulation for options pricing in C and CUDA C++.
+Both C and CUDA C++ programs can price vanilla european calls.
+
+Usage for CUDA C++:
+Edit source code to set contract parameters. Assuming the CUDA toolkit is installed from NVIDIA (https://developer.nvidia.com/cuda-downloads), compile with
+    nvcc -o mc.o montecarlo.cu
+You may use the command line argument to set the number of blocks (each block runs 1024 trajectories).
+    ./mc.o -b 100
+Or do not include any arguments to use the default (200 blocks = 204,800 trajectories).
+
+Usage for C:
+Edit source code to set contract parameters. Then compile with
+    gcc -o mc.o montecarlo.c
+You may use the command line argument to set the number of trajectories.
+    ./mc.o -T 30000
+Or do not include any arguments to use the default (30k).

@@ -15,7 +15,7 @@ You may use the command line argument to set the number of blocks (each block ru
 Or do not include any arguments to use the default (200 blocks = 204,800 trajectories).
 
 # C Instructions
-Edit source code to set contract parameters. Then compile with
+Edit the source code to set contract parameters. Then compile with
 
     gcc -o mc.o montecarlo.c
     

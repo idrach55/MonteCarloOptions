@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 {
     // fill out simulation parameters to pass to GPU
     params h_params;
-    h_params.N = 500;            // timesteps
+    h_params.N = 500;            // time steps
     h_params.S0 = 1992.67;       // spot price
     h_params.sigma = 0.17056;    // volatility (annualized)
     h_params.r = 0.00023;        // risk-free interest rate (annualized)
@@ -86,29 +86,34 @@ int main(int argc, char **argv)
     // default number of blocks is 200
     // each block runs 1024 threads (trajectories)
     int nBlocks = 200;
+    int maxBlocks = 500;
     int nThreads = 1024;
 
     // check for command line arguments
-    if (argc == 3 && strcmp(argv[1],"-b") == 0) {
-        // set custom number of blocks
-        nBlocks = atoi(argv[2]);
+    if (argc > 1) {
+        for (int i = 1; i < argc; i++) 
+        {
+            if (strcmp(argv[i],"-b") == 0) nBlocks = atoi(argv[i+1]);
+            if (strcmp(argv[i],"-m") == 0) maxBlocks = atoi(argv[i+1]);
+            if (strcmp(argv[i],"-N") == 0) h_params.N = atoi(argv[i+1]);
+        }
     } else if (argc > 1) {
         // usage error
-        std::cout << "usage: " << argv[0] << " [-b blocks]" << std::endl;
+        std::cout << "usage: " << argv[0] << " [-b blocks] [-m max per partition] [-N time steps]" << std::endl;
         return -1;
     }
 
     // we will partition the blocks over several kernels to avoid timeout errors
     // each kernel will execute at most 500 blocks   
     int nPartitions = 1;
-    if (nBlocks > 500 && nBlocks % 500 == 0) nPartitions = nBlocks / 500;
-    else if (nBlocks > 500) nPartitions = nBlocks / 500 + 1; 
+    if (nBlocks > maxBlocks && nBlocks % maxBlocks == 0) nPartitions = nBlocks / maxBlocks;
+    else if (nBlocks > maxBlocks) nPartitions = nBlocks / maxBlocks + 1; 
 
     int partition[nPartitions];
 
     int tmp_nBlocks = nBlocks;
     for (int p = 0; tmp_nBlocks > 0; p++) {
-        int amt = min(tmp_nBlocks,500);
+        int amt = min(tmp_nBlocks,maxBlocks);
         partition[p] = amt; 
 
         tmp_nBlocks -= amt;
